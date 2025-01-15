@@ -471,6 +471,7 @@ LOOP:
 
 				ns, err := i.namespacer.NamespaceByID(ctx, entity.NamespaceID)
 				if err != nil {
+					tx.Abort()
 					return err
 				}
 				if ns == nil {
@@ -481,6 +482,7 @@ LOOP:
 						i.logger.Warn("deleting entity and its any existing aliases", "name", entity.Name, "namespace_id", entity.NamespaceID)
 						err = i.entityPacker.DeleteItem(ctx, entity.ID)
 						if err != nil {
+							tx.Abort()
 							return err
 						}
 					}
@@ -491,9 +493,11 @@ LOOP:
 				// Ensure that there are no entities with duplicate names
 				entityByName, err := i.MemDBEntityByName(nsCtx, entity.Name, false)
 				if err != nil {
+					tx.Abort()
 					return nil
 				}
 				if err := i.conflictResolver.ResolveEntities(ctx, entityByName, entity); err != nil && !i.disableLowerCasedNames {
+					tx.Abort()
 					return err
 				}
 
@@ -511,6 +515,7 @@ LOOP:
 
 				err = i.loadLocalAliasesForEntity(ctx, entity, localAliasBuckets)
 				if err != nil {
+					tx.Abort()
 					return fmt.Errorf("failed to load local aliases from storage: %v", err)
 				}
 
@@ -523,6 +528,7 @@ LOOP:
 				// Only update MemDB and don't hit the storage again
 				err = i.upsertEntityInTxn(nsCtx, tx, entity, nil, false)
 				if err != nil {
+					tx.Abort()
 					return fmt.Errorf("failed to update entity in MemDB: %w", err)
 				}
 				upsertedItems += toBeUpserted
